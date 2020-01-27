@@ -1,7 +1,9 @@
 #!/bin/sh
 
 #
-# depends on gist
+# Pacman Backup Gist
+# saves installed native and AUR packages in 2 github gists
+# depends on diff, gist, pacman and comm
 #
 
 # CONSTANTS

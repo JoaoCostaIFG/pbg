@@ -8,9 +8,9 @@ pretty much accomplishes the same objectives with some small differences (this p
 doesn't use backup files and has some extra functions):
 
 - List packages currently saved in the gists (just pacman natives, just AUR or both)
-(-s/-u flag);  
+(**-s**/**-u** flag);  
 - Automatically install/uninstall packages to sync your machine with the information
-in the gists (-f flag): currently only supports pacman native packages;  
+in the gists (**-f** flag): currently only supports pacman native packages;  
 - No need to provide your github credentials as **you have the option** to provide
 an access token with gist permissions instead;  
-- You can check the help text with the: -h, -H, -help or --help flags.
+- You can check the help text with the: **-h**, **-H**, **-help** or **--help** flags.
