@@ -13,7 +13,7 @@ install:
 	chmod 755 ${BINDIR}/pbg
 	touch ${CFGDIR}/pbg
 	chmod 644 ${CFGDIR}/pbg
-	@echo "Run pbg.sh as sudo to config it."
+	@echo "Run pbg as sudo to config it."
 
 .PHONY: clean
 clean:
