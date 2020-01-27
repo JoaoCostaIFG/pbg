@@ -8,4 +8,4 @@ Target = *
 [Action]
 Depends = coreutils
 When = PostTransaction
-Exec = /home/joao/Scripts/skane
+Exec = /usr/local/bin/pbg

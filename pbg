@@ -19,6 +19,7 @@ help() {
   # flags
   printf " -h, -H, --help, -help    Show this help page\n"
   printf " -s, -u [p, a, b]         Get [p]acman, [a]ur or [b]oth (default is pacman)\n"
+  printf " -f                       Delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR)."
   printf "If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
   exit 0
 }
@@ -43,6 +44,32 @@ get_pkg() {
   exit 0
 }
 
+force_changes() {
+  # check for gists' id file
+  if ! test -f "$DESTDIR/etc/pbg"; then
+    printf "FATAL ERROR: No gists' ids file file found. You need to init/config the script again.\n"
+    exit 1
+  fi
+
+  # take care of pacman's native packages
+  if ! gist -r "$(head -n 1 "$DESTDIR/etc/pbg")" > "/tmp/$PACNAT_FILE"; then
+    printf "FATAL ERROR: Failed to read pacman's native packages gist.\n"
+    exit 1
+  fi
+
+  # save current native packages
+  pacman -Qqen > "/tmp/$PACNAT_FILE.old"
+  # delete packages that were removed from the list
+  pacman -R $(comm -23 "/tmp/$PACNAT_FILE.old" "/tmp/$PACNAT_FILE")
+  # install packages that were added to the list
+  pacman -Syu $(comm -13 "/tmp/$PACNAT_FILE.old" "/tmp/$PACNAT_FILE")
+
+  # clean used files
+  rm -f "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.old"
+
+  exit 0
+}
+
 cargs() {
   case "$1" in
     "-h" | "-H" | "-help" | "--help")
@@ -59,6 +86,11 @@ cargs() {
       DESTDIR="$3"
       # get packages
       get_pkg "$2"
+      ;;
+    "-f")
+      DESTDIR="$2"
+      # install new packages and unistall old ones
+      force_changes
       ;;
     -*)
       printf "%s is not a known flag\n" "$1"
