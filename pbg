@@ -120,10 +120,17 @@ init() {
   if ! test -r "$DESTDIR/root/.gist"; then
     printf "No gist access token found or not readable.\nDo you wish to provide an access token yourself? [Y/n] "
     read ans
-    if [ ! "$ans" ] || [ "$ans" == "Y" ] || [ "$ans" == "y" ]; then
+    if [ ! "$ans" ] || [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
+      printf "You can provide the access token or the full path to one.\n"
       # read token from user
       ! read token && exit 1
-      printf "%s" "$token" > "$DESTDIR/root/.gist"
+      
+      # check if it is a file
+      if test -r "$token"; then
+        cp "$token" "$DESTDIR/root/.gist"
+      else
+        printf "%s" "$token" > "$DESTDIR/root/.gist"
+      fi
     else
       # use gist to create token for user
       printf "Gist can generate the token for you.\n"
