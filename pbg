@@ -23,7 +23,8 @@ help() {
   printf " -s, -u [p, a, b]         Get [p]acman, [a]ur or [b]oth (default is pacman)\n"
   printf " -f                       Sync machine with uploaded gists i.e. delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR support).\n"
   printf " -i                       GO though the init process again.\n"
-  printf "If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
+  printf " You can copy the pbg cache file (usually at /etc/pbg) from one machine to another so they share their packages."
+  printf "Note: If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
   exit 0
 }
 
