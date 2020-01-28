@@ -8,9 +8,9 @@
 
 # CONSTANTS
 # pacman native list gist file name
-PACNAT_FILE="$(hostname).pacnative-list.pkg"
+PACNAT_FILE=".pacman-list.pkg"
 # aur list gist file name
-AUR_FILE="$(hostname).aur-list.pkg"
+AUR_FILE=".aur-list.pkg"
 # base working path
 DESTDIR="$1"
 
@@ -21,7 +21,8 @@ help() {
   # flags
   printf " -h, -H, --help, -help    Show this help page\n"
   printf " -s, -u [p, a, b]         Get [p]acman, [a]ur or [b]oth (default is pacman)\n"
-  printf " -f                       Delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR)."
+  printf " -f                       Sync machine with uploaded gists i.e. delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR support).\n"
+  printf " -i                       GO though the init process again.\n"
   printf "If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
   exit 0
 }
@@ -35,26 +36,45 @@ get_pkg() {
 
   # get list of pacman natives
   if [ "$1" != "a" ]; then
-    printf "%s\n" "$(gist -r "$(head -n 1 "$DESTDIR/etc/pbg")")"
+    printf "%s\n" "$(gist -r "$(head -1 "$DESTDIR/etc/pbg")")"
   fi
 
   # get list of AUR packages
   if [ "$1" = "a" ] || [ "$1" = "b" ]; then
-    printf "%s\n" "$(gist -r "$(tail -n 1 "$DESTDIR/etc/pbg")")"
+    printf "%s\n" "$(gist -r "$(head -2 "$DESTDIR/etc/pbg" | tail -1)")"
   fi
-  
+
   exit 0
 }
 
-force_changes() {
+read_gist_names() {
+  if [ "$1" ]; then
+    # name set by user
+    # pacman native list gist file name
+    PACNAT_FILE="$1$PACNAT_FILE"
+    # aur list gist file name
+    AUR_FILE="$1$AUR_FILE"
+  else
+    # default name
+    # pacman native list gist file name
+    PACNAT_FILE="$(hostname)$PACNAT_FILE"
+    # aur list gist file name
+    AUR_FILE="$(hostname)$AUR_FILE"
+  fi
+}
+
+force_changes() { # TODO support for AUR helper here
   # check for gists' id file
   if ! test -f "$DESTDIR/etc/pbg"; then
     printf "FATAL ERROR: No gists' ids file file found. You need to init/config the script again.\n"
     exit 1
   fi
 
+  # set gist file name
+  read_gist_names "$(tail -1 "$DESTDIR/etc/pbg")"
+
   # take care of pacman's native packages
-  if ! gist -r "$(head -n 1 "$DESTDIR/etc/pbg")" > "/tmp/$PACNAT_FILE"; then
+  if ! gist -r "$(head -1 "$DESTDIR/etc/pbg")" > "/tmp/$PACNAT_FILE"; then
     printf "FATAL ERROR: Failed to read pacman's native packages gist.\n"
     exit 1
   fi
@@ -70,6 +90,18 @@ force_changes() {
   rm -f "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.old"
 
   exit 0
+}
+
+reinit() {
+  printf "Are you sure you want to go through the init process again? You'll have to delete your previously uploaded gists manually (if you don't want them to stay up). [y/N] "
+  read -r ans
+  if [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
+    DESTDIR="$2"
+    rm "$DESTDIR/etc/pbg"
+  else
+    printf "Operation cancelled. Exiting..\n"
+    exit 1
+  fi
 }
 
 cargs() {
@@ -94,6 +126,10 @@ cargs() {
       # install new packages and unistall old ones
       force_changes
       ;;
+    "-i")
+      # reinit
+      reinit
+      ;;
     -*)
       printf "%s is not a known flag\n" "$1"
       exit 1
@@ -105,13 +141,17 @@ cargs() {
 }
 
 new_pbg() {
+  # set gist file name
+  read_gist_names "$1"
+
   # create gists
   gist_nat="$(pacman -Qqen | gist -p -f "$PACNAT_FILE" -d 'Pacman package list.')"
   gist_aur="$(pacman -Qqem | gist -p -f "$AUR_FILE" -d 'AUR package list.')"
 
   # save created gists' ids
   printf "%s\n" "$gist_nat" | sed 's/https:\/\/gist.github.com\///g' > "$DESTDIR/etc/pbg"
-  printf "%s" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >> "$DESTDIR/etc/pbg"
+  printf "%s\n" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >> "$DESTDIR/etc/pbg"
+  printf "%s" "$1" >> "$DESTDIR/etc/pbg"
   chmod 644 "$DESTDIR/etc/pbg"
 }
 
@@ -119,16 +159,18 @@ init() {
   # check if the gist access token exists
   if ! test -r "$DESTDIR/root/.gist"; then
     printf "No gist access token found or not readable.\nDo you wish to provide an access token yourself? [Y/n] "
-    read ans
+    read -r ans
     if [ ! "$ans" ] || [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
       printf "You can provide the access token or the full path to one.\n"
       # read token from user
-      ! read token && exit 1
-      
+      ! read -r token && exit 1
+      [ ! "$token" ] && exit 1
+
       # check if it is a file
       if test -r "$token"; then
         cp "$token" "$DESTDIR/root/.gist"
       else
+        # copy user's gist access token to root dir
         printf "%s" "$token" > "$DESTDIR/root/.gist"
       fi
     else
@@ -138,13 +180,10 @@ init() {
     fi
   fi
 
-  # copy user's gist access token to root
-  if ! cmp --silent ~/.gist "$DESTDIR/root/.gist"; then
-    cp "$HOME/.gist" "$DESTDIR/root/.gist";
-  fi
-
   # create new pbg file
-  new_pbg
+  printf "Choose the new gist files' name prefixes. Blank for default '%s'\n" "$(hostname)"
+  read -r name_pre
+  new_pbg "$name_pre"
 }
 
 update() {
@@ -158,7 +197,7 @@ update() {
 
   # check for gists' id file
   if ! test -f "$DESTDIR/etc/pbg"; then
-    printf "No gists' ids file file found. Creating new gists for them.\n"
+    printf "No gists' ids file file found. Creating new gists for them with the folowing name prefix: '%s'.\n" "$(hostname)"
     # create new pbg file
     new_pbg
     exit 0
@@ -173,7 +212,7 @@ update() {
   # check for differences and upload them (if any)
   pacman -Qqen > "/tmp/$PACNAT_FILE.new"
   if ! diff "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.new" > /dev/null 2>&1; then
-    if ! cat "/tmp/$PACNAT_FILE.new" | gist -u "$gist_nat" -f "$PACNAT_FILE"; then
+    if ! gist -u "$gist_nat" -f "$PACNAT_FILE" < "/tmp/$PACNAT_FILE.new"; then
       rm -f "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.new"
       printf "FATAL ERROR: Failed to update pacman's native packages gist.\n"
       exit 1
@@ -191,7 +230,7 @@ update() {
   # check for differences and upload them (if any)
   pacman -Qqem > "/tmp/$AUR_FILE.new"
   if ! diff "/tmp/$AUR_FILE" "/tmp/$AUR_FILE.new" > /dev/null 2>&1; then
-    if ! cat "/tmp/$AUR_FILE.new" | gist -u "$gist_aur" -f "$AUR_FILE"; then
+    if ! gist -u "$gist_aur" -f "$AUR_FILE" < "/tmp/$AUR_FILE.new"; then
       rm -f "/tmp/$AUR_FILE" "/tmp/$AUR_FILE.new"
       printf "FATAL ERROR: Failed to update AUR's packages gist.\n"
       exit 1
@@ -201,20 +240,40 @@ update() {
   rm -f "/tmp/$AUR_FILE" "/tmp/$AUR_FILE.new"
 }
 
+root_check() {
+  # check for fakeroot (script needs real root capabilities)
+  if printf "%s" "$LD_LIBRARY_PATH" | grep libfakeroot > /dev/null; then
+    is_fakeroot=true
+  else
+    is_fakeroot=false
+  fi
+
+  # update gist contents if root
+  if [ "$(id -u)" -ne 0 ] || "$is_fakeroot"; then
+    printf "Script need to be run as root for this operation. Exiting.."
+    exit 1
+  fi
+}
 
 # take care of command line arguments
 cargs "$@"
 
 # check existance of the base working program path
-if [ "$1" ] && [ ! -d "$1" ]; then
+if [ "$DESTDIR" ] && [ ! -d "$DESTDIR" ]; then
   printf "FATAL ERROR: The given 'DESTDIR' was not found.\n"
   exit 1
 fi
 
-# read saved gists id's
+# check for fakeroot (script needs real root capabilities)
+root_check
+
+# get gists' info
 if test -r "$DESTDIR/etc/pbg"; then
-  gist_nat="$(head -n 1 "$DESTDIR/etc/pbg")"
-  gist_aur="$(tail -n 1 "$DESTDIR/etc/pbg")"
+  # read saved gists id's
+  gist_nat="$(head -1 "$DESTDIR/etc/pbg")"
+  gist_aur="$(head -2 "$DESTDIR/etc/pbg" | tail -1)"
+  # read gist's file name
+  read_gist_names "$(tail -1 "$DESTDIR/etc/pbg")"
 fi
 
 # init if necessary
@@ -222,14 +281,6 @@ if [ ! "$gist_nat" ] || [ ! "$gist_aur" ]; then
   printf "New init is needed.\n"
   init
 else
-  # check for fakeroot (script needs real root capabilities)
-  if printf "%s" "$LD_LIBRARY_PATH" | grep libfakeroot > /dev/null; then
-    is_fakeroot=true
-  else
-    is_fakeroot=false
-  fi
-  # update gist contents if root
-  if [ "$(id -u)" -eq 0 ] && ! "$is_fakeroot"; then
-    update
-  fi
+  printf "Updating.\n"
+  update
 fi
