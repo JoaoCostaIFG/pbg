@@ -14,3 +14,22 @@ in the gists (**-f** flag): currently only supports pacman native packages;
 - No need to provide your github credentials as **you have the option** to provide
 an access token with gist permissions instead;  
 - You can check the help text with the: **-h**, **-H**, **-help** or **--help** flags.
+
+## Install
+
+1. Clone the repository
+```sh
+https://github.com/JoaoCostaIFG/pbg.git
+```
+2. Use the makefile
+```sh
+sudo make install
+```
+3. Go through the init process
+```sh
+sudo pbg
+```
+4. (optional) Check the help page for details/extra functions
+```sh
+pbg -h
+```

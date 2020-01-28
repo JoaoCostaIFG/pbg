@@ -22,7 +22,8 @@ clean:
 .PHONY: uninstall
 uninstall:
 	rm -f ${HOOKDIR}/pbg.hook ${BINDIR}/pbg
-	@echo "Run 'fulluninstall' to clean your github gist access token."
+	@echo "Run 'make clean' to clean the cache file."
+	@echo "Run 'make fulluninstall' to clean your github gist access token."
 
 .PHONY: fulluninstall
 fulluninstall: uninstall clean
