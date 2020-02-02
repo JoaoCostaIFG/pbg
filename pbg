@@ -20,9 +20,9 @@ help() {
   printf "You need to manually run this script at least once after each install to configure the hook/script. It will ask you for a github access token with gist permissions. If you don't have one, this script can create one for you if you provide your login credentials (they will not be saved anywhere and will only be used to create the said access token).\nYou can also remove the created .gist file to trigger a reconfiguration on the next run of this script.\n"
   # flags
   printf " -h, -H, --help, -help    Show this help page\n"
-  printf " -s, -u [p, a, b]         Get [p]acman, [a]ur or [b]oth (default is pacman)\n"
-  printf " -f                       Sync machine with uploaded gists i.e. delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR support).\n"
-  printf " -i                       GO though the init process again.\n"
+  printf " -Q, -s, -u [p, a, b]     Get [p]acman, [a]ur or [b]oth (default is pacman)\n"
+  printf " -S, -f                   Sync machine with uploaded gists i.e. delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR support).\n"
+  printf " -i, --init               GO though the init process again.\n"
   printf " You can copy the pbg cache file (usually at /etc/pbg) from one machine to another so they share their packages."
   printf "Note: If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
   exit 0
@@ -75,13 +75,13 @@ force_changes() { # TODO support for AUR helper here
   read_gist_names "$(tail -1 "$DESTDIR/etc/pbg")"
 
   # take care of pacman's native packages
-  if ! gist -r "$(head -1 "$DESTDIR/etc/pbg")" > "/tmp/$PACNAT_FILE"; then
+  if ! gist -r "$(head -1 "$DESTDIR/etc/pbg")" >"/tmp/$PACNAT_FILE"; then
     printf "FATAL ERROR: Failed to read pacman's native packages gist.\n"
     exit 1
   fi
 
   # save current native packages
-  pacman -Qqen > "/tmp/$PACNAT_FILE.old"
+  pacman -Qqen >"/tmp/$PACNAT_FILE.old"
   # delete packages that were removed from the list
   pacman -R $(comm -23 "/tmp/$PACNAT_FILE.old" "/tmp/$PACNAT_FILE")
   # install packages that were added to the list
@@ -107,37 +107,37 @@ reinit() {
 
 cargs() {
   case "$1" in
-    "-h" | "-H" | "-help" | "--help")
-      # show help if asked
-      help
-      ;;
-    "-s" | "-u")
-      # check if valid options were given
-      if [ "$2" != "p" ] && [ "$2" != "b" ] && [ "$2" != "a" ] && [ "$2" ]; then
-        printf "%s is not a valid option for -s/-u" "$2"
-        exit 1
-      fi
-      # set base path (if needed)
-      DESTDIR="$3"
-      # get packages
-      get_pkg "$2"
-      ;;
-    "-f")
-      DESTDIR="$2"
-      # install new packages and unistall old ones
-      force_changes
-      ;;
-    "-i")
-      # reinit
-      reinit
-      ;;
-    -*)
-      printf "%s is not a known flag\n" "$1"
+  "-h" | "-H" | "-help" | "--help")
+    # show help if asked
+    help
+    ;;
+  "-Q" | "-s" | "-u")
+    # check if valid options were given
+    if [ "$2" != "p" ] && [ "$2" != "b" ] && [ "$2" != "a" ] && [ "$2" ]; then
+      printf "%s is not a valid option for -s/-u" "$2"
       exit 1
-      ;;
-    *)
-      printf "pbg: starting\n"
-      ;;
+    fi
+    # set base path (if needed)
+    DESTDIR="$3"
+    # get packages
+    get_pkg "$2"
+    ;;
+  "-S" | "-f")
+    DESTDIR="$2"
+    # install new packages and unistall old ones
+    force_changes
+    ;;
+  "-i" | "--init")
+    # reinit
+    reinit
+    ;;
+  -*)
+    printf "%s is not a known flag\n" "$1"
+    exit 1
+    ;;
+  *)
+    printf "pbg: starting\n"
+    ;;
   esac
 }
 
@@ -150,9 +150,9 @@ new_pbg() {
   gist_aur="$(pacman -Qqem | gist -p -f "$AUR_FILE" -d 'AUR package list.')"
 
   # save created gists' ids
-  printf "%s\n" "$gist_nat" | sed 's/https:\/\/gist.github.com\///g' > "$DESTDIR/etc/pbg"
-  printf "%s\n" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >> "$DESTDIR/etc/pbg"
-  printf "%s" "$1" >> "$DESTDIR/etc/pbg"
+  printf "%s\n" "$gist_nat" | sed 's/https:\/\/gist.github.com\///g' >"$DESTDIR/etc/pbg"
+  printf "%s\n" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >>"$DESTDIR/etc/pbg"
+  printf "%s" "$1" >>"$DESTDIR/etc/pbg"
   chmod 644 "$DESTDIR/etc/pbg"
 }
 
@@ -172,7 +172,7 @@ init() {
         cp "$token" "$DESTDIR/root/.gist"
       else
         # copy user's gist access token to root dir
-        printf "%s" "$token" > "$DESTDIR/root/.gist"
+        printf "%s" "$token" >"$DESTDIR/root/.gist"
       fi
     else
       # use gist to create token for user
@@ -205,15 +205,15 @@ update() {
   fi
 
   # take care of pacman's native packages
-  if ! gist -r "$gist_nat" > "/tmp/$PACNAT_FILE"; then
+  if ! gist -r "$gist_nat" >"/tmp/$PACNAT_FILE"; then
     printf "FATAL ERROR: Failed to read pacman's native packages gist.\n"
     exit 1
   fi
 
   # check for differences and upload them (if any)
-  pacman -Qqen > "/tmp/$PACNAT_FILE.new"
-  if ! diff "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.new" > /dev/null 2>&1; then
-    if ! gist -u "$gist_nat" -f "$PACNAT_FILE" < "/tmp/$PACNAT_FILE.new"; then
+  pacman -Qqen >"/tmp/$PACNAT_FILE.new"
+  if ! diff "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.new" >/dev/null 2>&1; then
+    if ! gist -u "$gist_nat" -f "$PACNAT_FILE" <"/tmp/$PACNAT_FILE.new"; then
       rm -f "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.new"
       printf "FATAL ERROR: Failed to update pacman's native packages gist.\n"
       exit 1
@@ -223,15 +223,15 @@ update() {
   rm -f "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.new"
 
   # take care of AUR's packages
-  if ! gist -r "$gist_aur" > "/tmp/$AUR_FILE"; then
+  if ! gist -r "$gist_aur" >"/tmp/$AUR_FILE"; then
     printf "FATAL ERROR: Failed to read AUR's packages gist.\n"
     exit 1
   fi
 
   # check for differences and upload them (if any)
-  pacman -Qqem > "/tmp/$AUR_FILE.new"
-  if ! diff "/tmp/$AUR_FILE" "/tmp/$AUR_FILE.new" > /dev/null 2>&1; then
-    if ! gist -u "$gist_aur" -f "$AUR_FILE" < "/tmp/$AUR_FILE.new"; then
+  pacman -Qqem >"/tmp/$AUR_FILE.new"
+  if ! diff "/tmp/$AUR_FILE" "/tmp/$AUR_FILE.new" >/dev/null 2>&1; then
+    if ! gist -u "$gist_aur" -f "$AUR_FILE" <"/tmp/$AUR_FILE.new"; then
       rm -f "/tmp/$AUR_FILE" "/tmp/$AUR_FILE.new"
       printf "FATAL ERROR: Failed to update AUR's packages gist.\n"
       exit 1
@@ -243,7 +243,7 @@ update() {
 
 root_check() {
   # check for fakeroot (script needs real root capabilities)
-  if printf "%s" "$LD_LIBRARY_PATH" | grep libfakeroot > /dev/null; then
+  if printf "%s" "$LD_LIBRARY_PATH" | grep libfakeroot >/dev/null; then
     is_fakeroot=true
   else
     is_fakeroot=false
