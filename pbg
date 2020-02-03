@@ -20,6 +20,7 @@ help() {
   printf " -h, -H, --help, -help    Show this help page\n"
   printf " -Q, -s, -u [p, a, b]     Get [p]acman, [a]ur or [b]oth (default is pacman)\n"
   printf " -S, -f                   Sync machine with uploaded gists i.e. delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR support).\n"
+  printf " -Ss                      Search for given string in packages list (natives + AUR).\n"
   printf " -i, --init               GO though the init process again.\n"
   printf " You can copy the pbg cache file, '/etc/pbg' from one machine to another so they share their packages.\n"
   # printf "Note: If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
@@ -43,6 +44,23 @@ get_pkg() {
     printf "%s\n" "$(gist -r "$(head -2 "/etc/pbg" | tail -1)")"
   fi
 
+  exit 0
+}
+
+search_pkg() {
+  # check for gists' ids file existance
+  if ! test -r "/etc/pbg"; then
+    printf "No gists' ids file file found.\n"
+    exit 1
+  fi
+
+  # get list of pacman natives
+  list="$(gist -r "$(head -1 "/etc/pbg")" | grep "$1")"
+
+  # get list of AUR packages
+  list="$list$(gist -r "$(head -2 "/etc/pbg" | tail -1)" | grep "$1")"
+
+  printf "%s\n" "$list"
   exit 0
 }
 
@@ -121,6 +139,9 @@ cargs() {
     root_check
     # install new packages and unistall old ones
     force_changes
+    ;;
+  "-Ss")
+    search_pkg "$2"
     ;;
   "-i" | "--init")
     root_check
