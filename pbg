@@ -11,8 +11,6 @@
 PACNAT_FILE=".pacman-list.pkg"
 # aur list gist file name
 AUR_FILE=".aur-list.pkg"
-# base working path
-DESTDIR="$1"
 
 help() {
   # show help text
@@ -23,26 +21,26 @@ help() {
   printf " -Q, -s, -u [p, a, b]     Get [p]acman, [a]ur or [b]oth (default is pacman)\n"
   printf " -S, -f                   Sync machine with uploaded gists i.e. delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR support).\n"
   printf " -i, --init               GO though the init process again.\n"
-  printf " You can copy the pbg cache file (usually at /etc/pbg) from one machine to another so they share their packages."
-  printf "Note: If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
+  printf " You can copy the pbg cache file (usually at /etc/pbg) from one machine to another so they share their packages.\n"
+  # printf "Note: If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
   exit 0
 }
 
 get_pkg() {
   # check for gists' ids file existance
-  if ! test -r "$DESTDIR/etc/pbg"; then
+  if ! test -r "/etc/pbg"; then
     printf "No gists' ids file file found.\n"
     exit 1
   fi
 
   # get list of pacman natives
   if [ "$1" != "a" ]; then
-    printf "%s\n" "$(gist -r "$(head -1 "$DESTDIR/etc/pbg")")"
+    printf "%s\n" "$(gist -r "$(head -1 "/etc/pbg")")"
   fi
 
   # get list of AUR packages
   if [ "$1" = "a" ] || [ "$1" = "b" ]; then
-    printf "%s\n" "$(gist -r "$(head -2 "$DESTDIR/etc/pbg" | tail -1)")"
+    printf "%s\n" "$(gist -r "$(head -2 "/etc/pbg" | tail -1)")"
   fi
 
   exit 0
@@ -66,16 +64,16 @@ read_gist_names() {
 
 force_changes() { # TODO support for AUR helper here
   # check for gists' id file
-  if ! test -f "$DESTDIR/etc/pbg"; then
+  if ! test -f "/etc/pbg"; then
     printf "FATAL ERROR: No gists' ids file file found. You need to init/config the script again.\n"
     exit 1
   fi
 
   # set gist file name
-  read_gist_names "$(tail -1 "$DESTDIR/etc/pbg")"
+  read_gist_names "$(tail -1 "/etc/pbg")"
 
   # take care of pacman's native packages
-  if ! gist -r "$(head -1 "$DESTDIR/etc/pbg")" >"/tmp/$PACNAT_FILE"; then
+  if ! gist -r "$(head -1 "/etc/pbg")" >"/tmp/$PACNAT_FILE"; then
     printf "FATAL ERROR: Failed to read pacman's native packages gist.\n"
     exit 1
   fi
@@ -97,8 +95,7 @@ reinit() {
   printf "Are you sure you want to go through the init process again? You'll have to delete your previously uploaded gists manually (if you don't want them to stay up). [y/N] "
   read -r ans
   if [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
-    DESTDIR="$2"
-    rm "$DESTDIR/etc/pbg"
+    rm "/etc/pbg"
   else
     printf "Operation cancelled. Exiting..\n"
     exit 1
@@ -117,17 +114,16 @@ cargs() {
       printf "%s is not a valid option for -s/-u" "$2"
       exit 1
     fi
-    # set base path (if needed)
-    DESTDIR="$3"
     # get packages
     get_pkg "$2"
     ;;
   "-S" | "-f")
-    DESTDIR="$2"
+    root_check
     # install new packages and unistall old ones
     force_changes
     ;;
   "-i" | "--init")
+    root_check
     # reinit
     reinit
     ;;
@@ -150,15 +146,15 @@ new_pbg() {
   gist_aur="$(pacman -Qqem | gist -p -f "$AUR_FILE" -d 'AUR package list.')"
 
   # save created gists' ids
-  printf "%s\n" "$gist_nat" | sed 's/https:\/\/gist.github.com\///g' >"$DESTDIR/etc/pbg"
-  printf "%s\n" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >>"$DESTDIR/etc/pbg"
-  printf "%s" "$1" >>"$DESTDIR/etc/pbg"
-  chmod 644 "$DESTDIR/etc/pbg"
+  printf "%s\n" "$gist_nat" | sed 's/https:\/\/gist.github.com\///g' >"/etc/pbg"
+  printf "%s\n" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >>"/etc/pbg"
+  printf "%s" "$1" >>"/etc/pbg"
+  chmod 644 "/etc/pbg"
 }
 
 init() {
   # check if the gist access token exists
-  if ! test -r "$DESTDIR/root/.gist"; then
+  if ! test -r "/root/.gist"; then
     printf "No gist access token found or not readable.\nDo you wish to provide an access token yourself? [Y/n] "
     read -r ans
     if [ ! "$ans" ] || [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
@@ -169,10 +165,10 @@ init() {
 
       # check if it is a file
       if test -r "$token"; then
-        cp "$token" "$DESTDIR/root/.gist"
+        cp "$token" "/root/.gist"
       else
         # copy user's gist access token to root dir
-        printf "%s" "$token" >"$DESTDIR/root/.gist"
+        printf "%s" "$token" >"/root/.gist"
       fi
     else
       # use gist to create token for user
@@ -191,13 +187,13 @@ update() {
   printf "Starting update of gists' information.\n"
 
   # check for gist token file existance
-  if ! test -r "$DESTDIR/root/.gist"; then
+  if ! test -r "/root/.gist"; then
     printf "FATAL ERROR: No gist token file found. Please run 'pbg' again in order to config it.\n"
     exit 1
   fi
 
   # check for gists' id file
-  if ! test -f "$DESTDIR/etc/pbg"; then
+  if ! test -f "/etc/pbg"; then
     printf "No gists' ids file file found. Creating new gists for them with the folowing name prefix: '%s'.\n" "$(hostname)"
     # create new pbg file
     new_pbg
@@ -251,7 +247,7 @@ root_check() {
 
   # update gist contents if root
   if [ "$(id -u)" -ne 0 ] || "$is_fakeroot"; then
-    printf "Script need to be run as root for this operation. Exiting.."
+    printf "Script need to be run as root for this operation. Exiting..\n"
     exit 1
   fi
 }
@@ -260,21 +256,21 @@ root_check() {
 cargs "$@"
 
 # check existance of the base working program path
-if [ "$DESTDIR" ] && [ ! -d "$DESTDIR" ]; then
-  printf "FATAL ERROR: The given 'DESTDIR' was not found.\n"
-  exit 1
-fi
+# if [ "$DESTDIR" ] && [ ! -d "$DESTDIR" ]; then
+# printf "FATAL ERROR: The given 'DESTDIR' was not found.\n"
+# exit 1
+# fi
 
 # check for fakeroot (script needs real root capabilities)
 root_check
 
 # get gists' info
-if test -r "$DESTDIR/etc/pbg"; then
+if test -r "/etc/pbg"; then
   # read saved gists id's
-  gist_nat="$(head -1 "$DESTDIR/etc/pbg")"
-  gist_aur="$(head -2 "$DESTDIR/etc/pbg" | tail -1)"
+  gist_nat="$(head -1 "/etc/pbg")"
+  gist_aur="$(head -2 "/etc/pbg" | tail -1)"
   # read gist's file name
-  read_gist_names "$(tail -1 "$DESTDIR/etc/pbg")"
+  read_gist_names "$(tail -1 "/etc/pbg")"
 fi
 
 # init if necessary
