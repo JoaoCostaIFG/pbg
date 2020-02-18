@@ -1,16 +1,19 @@
 #!/bin/sh
 
 #
-# Pacman Backup Gist
+# Pacman Backup Gist (pbg)
 # saves installed native and AUR packages in 2 github gists
 # depends on diff, gist, pacman and comm
 #
 
-# CONSTANTS
+# GLOBALS
+CACHE_FILE="/etc/pbg"
 # pacman native list gist file name
 PACNAT_FILE=".pacman-list.pkg"
+gist_nat=""
 # aur list gist file name
 AUR_FILE=".aur-list.pkg"
+gist_aur=""
 
 help() {
   # show help text
@@ -22,26 +25,26 @@ help() {
   printf " -S, -f                   Sync machine with uploaded gists i.e. delete your extra pacman packages (that have been uninstalled) and install new packages (no AUR support).\n"
   printf " -Ss                      Search for given string in packages list (natives + AUR).\n"
   printf " -i, --init               GO though the init process again.\n"
-  printf " You can copy the pbg cache file, '/etc/pbg' from one machine to another so they share their packages.\n"
+  printf " You can copy the pbg cache file, '$CACHE_FILE' from one machine to another so they share their packages.\n"
   # printf "Note: If you installed this using a different 'DESTDIR' on the Makefile, you might want to pass the path to the used 'DESTDIR' to this script as the last argument.\n"
   exit 0
 }
 
 get_pkg() {
   # check for gists' ids file existance
-  if ! test -r "/etc/pbg"; then
+  if ! test -r "$CACHE_FILE"; then
     printf "No gists' ids file file found.\n"
     exit 1
   fi
 
   # get list of pacman natives
   if [ "$1" != "a" ]; then
-    printf "%s\n" "$(gist -r "$(head -1 "/etc/pbg")")"
+    printf "%s\n" "$(gist -r "$(head -1 "$CACHE_FILE")")"
   fi
 
   # get list of AUR packages
   if [ "$1" = "a" ] || [ "$1" = "b" ]; then
-    printf "%s\n" "$(gist -r "$(head -2 "/etc/pbg" | tail -1)")"
+    printf "%s\n" "$(gist -r "$(head -2 "$CACHE_FILE" | tail -1)")"
   fi
 
   exit 0
@@ -49,49 +52,48 @@ get_pkg() {
 
 search_pkg() {
   # check for gists' ids file existance
-  if ! test -r "/etc/pbg"; then
+  if ! test -r "$CACHE_FILE"; then
     printf "No gists' ids file file found.\n"
     exit 1
   fi
 
   # get list of pacman natives
-  list="$(gist -r "$(head -1 "/etc/pbg")" | grep "$1")"
+  list="$(gist -r "$(head -1 "$CACHE_FILE")" | grep "$1")"
 
   # get list of AUR packages
-  list="$list$(gist -r "$(head -2 "/etc/pbg" | tail -1)" | grep "$1")"
+  list="$list$(gist -r "$(head -2 "$CACHE_FILE" | tail -1)" | grep "$1")"
 
   printf "%s\n" "$list"
   exit 0
 }
 
-read_gist_names() {
-  if [ "$1" ]; then
-    # name set by user
-    # pacman native list gist file name
-    PACNAT_FILE="$1$PACNAT_FILE"
-    # aur list gist file name
-    AUR_FILE="$1$AUR_FILE"
+read_pbg_file() {
+  if test -r "$CACHE_FILE"; then
+    # read gists id's
+    gist_nat="$(head -1 "$CACHE_FILE")"
+    gist_aur="$(head -2 "$CACHE_FILE" | tail -1)"
+
+    # read gist file names
+    gist_name="$(tail -1 "$CACHE_FILE")"
+    PACNAT_FILE="$gist_name$PACNAT_FILE"
+    AUR_FILE="$gist_name$AUR_FILE"
   else
-    # default name
-    # pacman native list gist file name
-    PACNAT_FILE="$(hostname)$PACNAT_FILE"
-    # aur list gist file name
-    AUR_FILE="$(hostname)$AUR_FILE"
+    echo "No pbg cache file found"
   fi
 }
 
 force_changes() { # TODO support for AUR helper here
   # check for gists' id file
-  if ! test -f "/etc/pbg"; then
+  if ! test -f "$CACHE_FILE"; then
     printf "FATAL ERROR: No gists' ids file file found. You need to init/config the script again.\n"
     exit 1
   fi
 
   # set gist file name
-  read_gist_names "$(tail -1 "/etc/pbg")"
+  read_pbg_file
 
   # take care of pacman's native packages
-  if ! gist -r "$(head -1 "/etc/pbg")" >"/tmp/$PACNAT_FILE"; then
+  if ! gist -r "$gist_nat" >"/tmp/$PACNAT_FILE"; then
     printf "FATAL ERROR: Failed to read pacman's native packages gist.\n"
     exit 1
   fi
@@ -113,7 +115,14 @@ reinit() {
   printf "Are you sure you want to go through the init process again? You'll have to delete your previously uploaded gists manually (if you don't want them to stay up). [y/N] "
   read -r ans
   if [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
-    rm "/etc/pbg"
+    rm "$CACHE_FILE"
+    # .gist file
+    printf "Do you also want to remove your save gist access token? This will not remove it from github, that has to be done manually. [y/N]"
+    ans=""
+    read -r ans
+    if [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
+      rm "/root/.gist"
+    fi
   else
     printf "Operation cancelled. Exiting..\n"
     exit 1
@@ -159,18 +168,23 @@ cargs() {
 }
 
 new_pbg() {
-  # set gist file name
-  read_gist_names "$1"
+  if [ ! "$1" ]; then
+    gist_name="$(hostname)"
+  else
+    gist_name="$1"
+  fi
+  PACNAT_FILE="$gist_name$PACNAT_FILE"
+  AUR_FILE="$gist_name$AUR_FILE"
 
   # create gists
   gist_nat="$(pacman -Qqen | gist -p -f "$PACNAT_FILE" -d 'Pacman package list.')"
   gist_aur="$(pacman -Qqem | gist -p -f "$AUR_FILE" -d 'AUR package list.')"
 
   # save created gists' ids
-  printf "%s\n" "$gist_nat" | sed 's/https:\/\/gist.github.com\///g' >"/etc/pbg"
-  printf "%s\n" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >>"/etc/pbg"
-  printf "%s" "$1" >>"/etc/pbg"
-  chmod 644 "/etc/pbg"
+  printf "%s\n" "$gist_nat" | sed 's/https:\/\/gist.github.com\///g' >"$CACHE_FILE"
+  printf "%s\n" "$gist_aur" | sed 's/https:\/\/gist.github.com\///g' >>"$CACHE_FILE"
+  printf "%s" "$gist_name" >>"$CACHE_FILE"
+  chmod 644 "$CACHE_FILE"
 }
 
 init() {
@@ -181,14 +195,14 @@ init() {
     if [ ! "$ans" ] || [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
       printf "You can provide the access token or the full path to one.\n"
       # read token from user
-      ! read -r token && exit 1
+      read -r token
       [ ! "$token" ] && exit 1
 
       # check if it is a file
       if test -r "$token"; then
         cp "$token" "/root/.gist"
       else
-        # copy user's gist access token to root dir
+        # write user's gist access token to root dir
         printf "%s" "$token" >"/root/.gist"
       fi
     else
@@ -214,10 +228,10 @@ update() {
   fi
 
   # check for gists' id file
-  if ! test -f "/etc/pbg"; then
-    printf "No gists' ids file file found. Creating new gists for them with the folowing name prefix: '%s'.\n" "$(hostname)"
+  if ! test -f "$CACHE_FILE"; then
+    printf "No pbg file found. Creating new gists for packages with the folowing name prefix: '%s'.\n" "$(hostname)"
     # create new pbg file
-    new_pbg
+    new_pbg "$(hostname)"
     exit 0
   fi
 
@@ -275,24 +289,10 @@ root_check() {
 
 # take care of command line arguments
 cargs "$@"
-
-# check existance of the base working program path
-# if [ "$DESTDIR" ] && [ ! -d "$DESTDIR" ]; then
-# printf "FATAL ERROR: The given 'DESTDIR' was not found.\n"
-# exit 1
-# fi
-
 # check for fakeroot (script needs real root capabilities)
 root_check
-
 # get gists' info
-if test -r "/etc/pbg"; then
-  # read saved gists id's
-  gist_nat="$(head -1 "/etc/pbg")"
-  gist_aur="$(head -2 "/etc/pbg" | tail -1)"
-  # read gist's file name
-  read_gist_names "$(tail -1 "/etc/pbg")"
-fi
+read_pbg_file
 
 # init if necessary
 if [ ! "$gist_nat" ] || [ ! "$gist_aur" ]; then

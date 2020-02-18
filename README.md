@@ -17,7 +17,7 @@ doesn't use backup files and has some extra functions):
 
 ## Install
 
-1. Install the **gist** package
+1. Install the **gist** package (if you haven't already)
 
 ```sh
 sudo pacman -Syu gist
