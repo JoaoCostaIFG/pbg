@@ -9,6 +9,9 @@ doesn't use backup files and has some extra functions):
 
 - List packages currently saved in the gists (just pacman natives, just AUR or both)
   (**-s**/**-u** flag);
+- Using **-Ss <name>** allows you to search for a given string on your gists (might).
+  This is useful because the packages you have uploaded on your gists might be different
+  from the ones you have on your computer currently (if syncing different machines);
 - Automatically install/uninstall packages to sync your machine with the information
   in the gists (**-f** flag): currently only supports pacman native packages;
 - No need to provide your github credentials as **you have the option** to provide
