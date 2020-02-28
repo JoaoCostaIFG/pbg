@@ -93,24 +93,27 @@ force_changes() { # TODO support for AUR helper here
   read_pbg_file
 
   # take care of pacman's native packages
-  if ! gist -r "$gist_nat" >"/tmp/$PACNAT_FILE"; then
+  if ! gist -r "$gist_nat" >"/tmp/$PACNAT_FILE.f"; then
     printf "FATAL ERROR: Failed to read pacman's native packages gist.\n"
     exit 1
   fi
 
   # save current native packages
-  pacman -Qqen >"/tmp/$PACNAT_FILE.old"
+  pacman -Qqen >"/tmp/$PACNAT_FILE.f.old"
 
   # delete packages that were removed from the list
-  rm_pkgs=$(comm -23 "/tmp/$PACNAT_FILE.old" "/tmp/$PACNAT_FILE")
+  rm_pkgs=$(comm -23 "/tmp/$PACNAT_FILE.f.old" "/tmp/$PACNAT_FILE.f")
   if [ "$rm_pkgs" ]; then
     echo "pbg: Current packages to remove - $(echo $rm_pkgs | tr '\n' ' ')"
     pacman -R $rm_pkgs
   else
     echo "pbg: No packages to remove."
   fi
+
+  echo
+
   # install packages that were added to the list
-  add_pkgs=$(comm -13 "/tmp/$PACNAT_FILE.old" "/tmp/$PACNAT_FILE")
+  add_pkgs=$(comm -13 "/tmp/$PACNAT_FILE.f.old" "/tmp/$PACNAT_FILE.f")
   if [ "$add_pkgs" ]; then
     echo "pbg: New packages to install - $(echo $add_pkgs | tr '\n' ' ')"
     pacman -Syu $add_pkgs
@@ -118,9 +121,8 @@ force_changes() { # TODO support for AUR helper here
     echo "pbg: No packages to install."
   fi
 
-  # clean used files
-  rm -f "/tmp/$PACNAT_FILE" "/tmp/$PACNAT_FILE.old"
-
+  # cleanup files
+  rm -f "/tmp/$PACNAT_FILE.f" "/tmp/$PACNAT_FILE.f.old"
   exit 0
 }
 
